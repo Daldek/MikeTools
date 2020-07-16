@@ -5,8 +5,9 @@
 import math
 import numpy as np
 import matplotlib.pyplot as plt
-from datetime import datetime
-from mikeio.dfs0 import dfs0
+from datetime import datetime, timedelta
+# from mikeio.dfs0 import Dfs0
+# # from mikeio.eum import TimeStep, ItemInfo, EUMType, EUMUnit
 
 # Dane wejsciowe
 H_max = 677.1  # Najwyzej polozony punkt zlewni
@@ -91,12 +92,17 @@ timesteps = timesteps_przybor + timesteps_opadanie
 plt.plot(timesteps, q)
 plt.show()
 
-data = []
-data.append(np.array(q))
-dfs = dfs0()
-dfs.create(filename='Punzet.dfs0',
-           data=data,
-           start_time=datetime(2020, 1, 1),
-           dt=3600,
-           names=['Flow'],
-           title='Punzet')
+data = [np.array(q)]
+print(q)
+print(timesteps)
+# dfs = Dfs0()
+# dfs.create(filename='Punzet.dfs0',
+#            data=data,
+#            start_time=datetime(2020, 1, 1),
+#            dt=3600,
+#            names=['Flow'],
+#            title='Punzet',
+#            variable_type=[100000],
+#            unit=[1000],
+#            data_value_type=[0]
+#            )
