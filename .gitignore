@@ -2,3 +2,5 @@
 *.dfs0
 *.iml
 *.xml
+**/.idea/
+**/.git/
