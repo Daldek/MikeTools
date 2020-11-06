@@ -98,6 +98,22 @@ def log_reader(folder, include_subdirectories):
     return status_list
 
 
+def mike2bat(folder):
+    commands_list = []
+
+    for root, dirs, files in os.walk(folder):
+        for file in files:
+            if file.endswith('.m21fm') and root == folder:
+                command = r'start /wait C:\"Program Files (x86)"\DHI\2019\bin\x64\MzLaunch.exe -gpu 1 -x ' \
+                          + str(file)
+                commands_list.append(command)
+            if file.endswith('.m21') and root == folder:
+                command = r'start /wait C:\"Program Files (x86)"\DHI\2019\bin\x64\MzLaunch.exe -exit -mpi 6 ' \
+                          + str(file)
+                commands_list.append(command)
+    return commands_list
+
+
 def dfsu2shp(dfsu_path, item_name, output_folder, prefix, time_step):
     # decode simulation name
     sim_name = str(dfsu_path).split('\\')[-1:][0]
@@ -128,3 +144,4 @@ def dfsu2shp(dfsu_path, item_name, output_folder, prefix, time_step):
     gfd.to_file(str(output_folder) + "\\" + str(prefix) + "_sim_" + str(sim_number) + "_" + str(item_name)
                 + "_vector_ts_" + str(time_step) + r".shp")
     print("Shapefile has been exported\nDone!")
+
