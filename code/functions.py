@@ -5,9 +5,12 @@ import geopandas as gpd
 from datetime import datetime
 import re
 from dhitools import dfsu
-from mikeio import Dfs2, Dfsu
+from mikeio import Dfs2, Dfsu, Mesh, Dataset
 from mikeio.eum import EUMType, EUMUnit, ItemInfo
+from mikeio.spatial import Grid2D
 from osgeo import gdal, ogr, osr
+import xarray as xr
+
 
 
 def read_dfsu(infile, items, cell_size, timestep):
@@ -145,3 +148,67 @@ def dfsu2shp(dfsu_path, item_name, output_folder, prefix, time_step):
                 + "_vector_ts_" + str(time_step) + r".shp")
     print("Shapefile has been exported\nDone!")
 
+
+def dfsu_to_dfs2(input_dfsu, item_name, dx, dy, output_dfs2):
+    # read Dfsu file
+    dfs = Dfsu(input_dfsu)
+    ds = dfs.read(items=[item_name])
+
+    # interpolate
+    g = dfs.get_overset_grid(dxdy=(dx, dy), buffer=-1e-2)
+    interpolant = dfs.get_2d_interpolant(g.xy, n_nearest=1)
+    dsi = dfs.interp2d(ds, *interpolant, shape=(g.ny, g.nx))
+    dsi.flipud()
+
+    # write to Dfs2
+    dfs2 = Dfs2()
+    coordinate = [dfs.projection_string, g.x0, g.y0, 0]
+    dfs2.write(output_dfs2, data=dsi, coordinate=coordinate, dx=g.dx, dy=g.dy)
+    return g.x0, g.y0
+
+
+def dfs2_to_netcdf(input_dfs2, x0, y0, output_netcdf):
+    '''
+    :param nx: number of columns
+    :param ny: number of rows
+    :param x0: xll coordinate
+    :param y0: yll coordinate
+    :param dx: cell size on the x axis
+    :param dy: cell size on the y axis
+    :param data_array: data (e.g. water elevation in each cell)
+    :return: netCDF file that can be opened e.g. in QGIS
+    '''
+
+    # read Dfs2
+    # dfs = Dfs2(r"C:\Users\PLPD00293\Desktop\surface_elevation_interpolated.dfs2")
+    dfs = Dfs2(input_dfs2)
+    ds = dfs.read()
+
+    # set geometry
+    nx = ds[0].shape[2]
+    ny = ds[0].shape[1]
+    x = [x0 + dfs.dx*i for i in range(nx)]
+    y = [y0 + dfs.dy*i for i in range(ny)]
+
+    # write to netCDF
+    y = list(reversed(y))
+    res = {}
+    spdims = ["y", "x"]
+    dims = spdims
+    coords = {}
+
+    coords["x"] = xr.DataArray(x, dims="x", attrs={"standard_name": "x", "units": "meters"})
+    coords["y"] = xr.DataArray(y, dims="y", attrs={"standard_name": "y", "units": "meters"})
+
+    for item in ds.items:
+        v = item.name
+        res[v] = xr.DataArray(np.squeeze(ds[v]), dims=dims,
+                              attrs={'name': v,
+                                     # TODO add standard name from https://cfconventions.org/standard-names.html
+                                     'units': item.unit.name,
+                                     'eumType': item.type,
+                                     'eumUnit': item.unit})
+
+    xr_ds = xr.Dataset(res, coords=coords)
+    xr_ds.to_netcdf(output_netcdf)
+    return 1
