@@ -9,6 +9,8 @@ from mikeio import Dfs2, Dfsu, Mesh, Dataset
 from mikeio.eum import EUMType, EUMUnit, ItemInfo
 from mikeio.spatial import Grid2D
 from osgeo import gdal, ogr, osr
+import rasterio
+from rasterio.transform import from_origin
 import xarray as xr
 
 
@@ -158,12 +160,43 @@ def dfsu_to_dfs2(input_dfsu, item_name, dx, dy, output_dfs2):
     g = dfs.get_overset_grid(dxdy=(dx, dy), buffer=-1e-2)
     interpolant = dfs.get_2d_interpolant(g.xy, n_nearest=1)
     dsi = dfs.interp2d(ds, *interpolant, shape=(g.ny, g.nx))
-    dsi.flipud()
 
     # write to Dfs2
+    dsi.flipud()
     dfs2 = Dfs2()
     coordinate = [dfs.projection_string, g.x0, g.y0, 0]
     dfs2.write(output_dfs2, data=dsi, coordinate=coordinate, dx=g.dx, dy=g.dy)
+    return g.x0, g.y0
+
+
+def dfsu_to_geotiff(input_dfsu, item_name, dx, dy, epsg_code, output_tiff):
+    # coordinate system
+    output_coord = 'EPSG:' + str(epsg_code)
+
+    # read a Dfsu file
+    dfs = Dfsu(input_dfsu)
+    ds = dfs.read(items=[item_name])
+
+    # interpolation
+    g = dfs.get_overset_grid(dxdy=(dx, dy), buffer=-1e-2)
+    interpolant = dfs.get_2d_interpolant(g.xy, n_nearest=1)
+    dsi = dfs.interp2d(ds, *interpolant, shape=(g.ny, g.nx))
+    dsi.flipud()
+    datgrid = dsi[item_name][0]
+
+    # write to a geotiff
+    with rasterio.open(
+     output_tiff,
+     'w',
+     driver='GTiff',
+     height=g.ny,
+     width=g.nx,
+     count=1,
+     dtype=datgrid.dtype,
+     crs=output_coord,
+     transform=from_origin(g.bbox[0], g.bbox[1], dx, dy)
+     ) as dst:
+        dst.write(datgrid, 1)
     return g.x0, g.y0
 
 
