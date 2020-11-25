@@ -61,18 +61,22 @@ def sim_name_decoder(input_name, group_number):
     #1 Prefix (name)
     #2 Simulation number
     #3 Scenario
-    #4 Mesh version
-    #5 Mesh version (if has a number)
-    #6 Manning roughness
-    # Extension
+    #4 klimat factor
+    #5 Mesh version
+    #6 Mesh version (if has a number)
+    #7 Manning roughness
+    #8 Extension
     """
     pattern = re.compile(
-        r'([a-zA-Z]+)_sim(\d+)_scen_([a-zA-Z]+|[a-zA-Z]+\d+)_([a-zA-Z]+|[a-zA-Z]+-[a-zA-Z])(\d+|)_M_(\d+|\d+-\d+).('
-        r'm21fm|dfsu)')
+        r'([a-zA-Z]+)_sim(\d+)_scen_([a-zA-Z]+|[a-zA-Z]+\d+)(_klimat|-klimat|)_([a-zA-Z]+|[a-zA-Z]+-[a-zA-Z])(\d+|)_'
+        r'M_(\d+|\d+-\d+).(m21fm|dfsu)')
     matches = pattern.finditer(input_name)
     for match in matches:
-        if group_number == 4 or group_number == 5:
-            mesh_version = str(match.group(4)) + str(match.group(5))
+        if group_number == 3 or group_number == 4:
+            mesh_version = str(match.group(3)) + str(match.group(4))
+            return mesh_version
+        elif group_number == 5 or group_number == 6:
+            mesh_version = str(match.group(5)) + str(match.group(6))
             return mesh_version
         else:
             return match.group(group_number)
@@ -194,7 +198,8 @@ def dfsu_to_geotiff(input_dfsu, item_name, dx, dy, epsg_code, output_tiff):
      count=1,
      dtype=datgrid.dtype,
      crs=output_coord,
-     transform=from_origin(g.bbox[0], g.bbox[1], dx, dy)
+     transform=from_origin(g.bbox[0], g.bbox[3], dx, dy),
+     nodata=-9999
      ) as dst:
         dst.write(datgrid, 1)
     return g.x0, g.y0
