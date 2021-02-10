@@ -14,7 +14,6 @@ from rasterio.transform import from_origin
 import xarray as xr
 
 
-
 def read_dfsu(infile, items, cell_size, timestep):
     # Elena's script
     print('Reading dfsu ...')
@@ -107,7 +106,7 @@ def log_reader(folder, include_subdirectories):
     return status_list
 
 
-def mike2bat(folder):
+def mike_to_bat(folder):
     commands_list = []
 
     for root, dirs, files in os.walk(folder):
@@ -123,19 +122,17 @@ def mike2bat(folder):
     return commands_list
 
 
-def dfsu2shp(dfsu_path, item_name, output_folder, prefix, time_step):
+def dfsu_to_shp(dfsu_path, item_name, output_folder, time_step):
     # decode simulation name
-    sim_name = str(dfsu_path).split('\\')[-1:][0]
+    sim_name = str(dfsu_path).split('\\')[-1:][0].replace(".dfsu", "")
     print("Simulation name: " + str(sim_name))
-    sim_number = sim_name_decoder(sim_name, 2)
-    print("Simulation number: " + str(sim_number))
 
     # read data
     dfsu_file = Dfsu(dfsu_path)
     print(dfsu_file)
     ds = dfsu_file.read()
     item = ds[item_name][time_step]
-    print("Data has been read")
+    print("Data have been read")
 
     # extract geometry
     shp = dfsu_file.to_shapely()
@@ -150,8 +147,7 @@ def dfsu2shp(dfsu_path, item_name, output_folder, prefix, time_step):
     # save to shapefile
     item_name = item_name.lower()
     item_name = item_name.replace(" ", "-")
-    gfd.to_file(str(output_folder) + "\\" + str(prefix) + "_sim_" + str(sim_number) + "_" + str(item_name)
-                + "_vector_ts_" + str(time_step) + r".shp")
+    gfd.to_file(str(output_folder) + "\\" + str(sim_name) + r"_" + str(item_name) + r".shp")
     print("Shapefile has been exported\nDone!")
 
 
@@ -159,17 +155,20 @@ def dfsu_to_dfs2(input_dfsu, item_name, dx, dy, output_dfs2):
     # read Dfsu file
     dfs = Dfsu(input_dfsu)
     ds = dfs.read(items=[item_name])
+    print("Data have been read")
 
     # interpolate
     g = dfs.get_overset_grid(dxdy=(dx, dy), buffer=-1e-2)
     interpolant = dfs.get_2d_interpolant(g.xy, n_nearest=1)
     dsi = dfs.interp2d(ds, *interpolant, shape=(g.ny, g.nx))
+    print("Data have been interpolated")
 
     # write to Dfs2
     dsi.flipud()
     dfs2 = Dfs2()
     coordinate = [dfs.projection_string, g.x0, g.y0, 0]
     dfs2.write(output_dfs2, data=dsi, coordinate=coordinate, dx=g.dx, dy=g.dy)
+    print("Dfs2 file has been exported\nDone!")
     return g.x0, g.y0
 
 
@@ -180,6 +179,7 @@ def dfsu_to_geotiff(input_dfsu, item_name, dx, dy, epsg_code, output_tiff):
     # read a Dfsu file
     dfs = Dfsu(input_dfsu)
     ds = dfs.read(items=[item_name])
+    print("Data have been read")
 
     # interpolation
     g = dfs.get_overset_grid(dxdy=(dx, dy), buffer=-1e-2)
@@ -187,6 +187,7 @@ def dfsu_to_geotiff(input_dfsu, item_name, dx, dy, epsg_code, output_tiff):
     dsi = dfs.interp2d(ds, *interpolant, shape=(g.ny, g.nx))
     dsi.flipud()
     datgrid = dsi[item_name][0]
+    print("Data have been interpolated")
 
     # write to a geotiff
     with rasterio.open(
@@ -202,23 +203,20 @@ def dfsu_to_geotiff(input_dfsu, item_name, dx, dy, epsg_code, output_tiff):
      nodata=-9999
      ) as dst:
         dst.write(datgrid, 1)
+    print("GeoTiff file has been exported\nDone!")
     return g.x0, g.y0
 
 
 def dfs2_to_netcdf(input_dfs2, x0, y0, output_netcdf):
     '''
-    :param nx: number of columns
-    :param ny: number of rows
+    :param input_dfs2: input dfs2 file
     :param x0: xll coordinate
     :param y0: yll coordinate
-    :param dx: cell size on the x axis
-    :param dy: cell size on the y axis
-    :param data_array: data (e.g. water elevation in each cell)
+    :param output_netcdf: output netcdf file
     :return: netCDF file that can be opened e.g. in QGIS
     '''
 
     # read Dfs2
-    # dfs = Dfs2(r"C:\Users\PLPD00293\Desktop\surface_elevation_interpolated.dfs2")
     dfs = Dfs2(input_dfs2)
     ds = dfs.read()
 
