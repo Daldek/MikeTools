@@ -12,6 +12,32 @@ from osgeo import gdal, ogr, osr
 import rasterio
 from rasterio.transform import from_origin
 import xarray as xr
+from classes import AscFile
+
+
+def dfs2_to_ascii(in_dfs2, in_ascii, out_ascii, is_int):
+    print('Reading dfs2...')
+    dfs = Dfs2(in_dfs2)
+    ds = dfs.read()
+
+    print("Reading ascii template...")
+    ascii_template = AscFile(in_ascii)
+    elevation = ds['Grid Data']
+
+    print("ASCII file writing in progress...")
+    with open(out_ascii, 'w') as file_object:
+        for attribute in ascii_template.get_properties():
+            file_object.write(attribute + "\n")
+        for row in elevation[0]:
+            for value in row:
+                if is_int is False:
+                    file_object.write(str(value) + ' ')
+                else:
+                    file_object.write(str(int(value)) + ' ')
+            file_object.write('\n')
+
+    print("ASCII file has been saved.")
+    return 1
 
 
 def read_dfsu(infile, items, cell_size, timestep):
@@ -48,37 +74,6 @@ def write_geotiff(data_array, x, y, raster_name, cell, proj, to_integer):
     outband.WriteArray(data_array)
     out_raster.SetProjection(proj)
     outband.FlushCache()
-
-
-def sim_name_decoder(input_name, group_number):
-    """
-    Online regex tester: https://regex101.com/
-    Example 1: Name_sim1_scen_MQ_del2_M_28-30.dfsu
-    Example 2: Name_sim3_scen_Q10_del2_M_28-30.dfsu
-
-    #0 Whole expression
-    #1 Prefix (name)
-    #2 Simulation number
-    #3 Scenario
-    #4 klimat factor
-    #5 Mesh version
-    #6 Mesh version (if has a number)
-    #7 Manning roughness
-    #8 Extension
-    """
-    pattern = re.compile(
-        r'([a-zA-Z]+)_sim(\d+)_scen_([a-zA-Z]+|[a-zA-Z]+\d+)(_klimat|-klimat|)_([a-zA-Z]+|[a-zA-Z]+-[a-zA-Z])(\d+|)_'
-        r'M_(\d+|\d+-\d+).(m21fm|dfsu)')
-    matches = pattern.finditer(input_name)
-    for match in matches:
-        if group_number == 3 or group_number == 4:
-            mesh_version = str(match.group(3)) + str(match.group(4))
-            return mesh_version
-        elif group_number == 5 or group_number == 6:
-            mesh_version = str(match.group(5)) + str(match.group(6))
-            return mesh_version
-        else:
-            return match.group(group_number)
 
 
 def log_reader(folder, include_subdirectories):
