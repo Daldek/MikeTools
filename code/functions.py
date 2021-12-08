@@ -1,79 +1,10 @@
 import os
-import numpy as np
 import pandas as pd
 import geopandas as gpd
-from datetime import datetime
-import re
-from dhitools import dfsu
-from mikeio import Dfs2, Dfsu, Mesh, Dataset
-from mikeio.eum import EUMType, EUMUnit, ItemInfo
-from mikeio.spatial import Grid2D
-from osgeo import gdal, ogr, osr
+from mikeio import Dfs2, Dfsu
 import rasterio
 from rasterio.transform import from_origin
-import xarray as xr
 from classes import AscFile
-
-
-def dfs2_to_ascii(in_dfs2, in_ascii, out_ascii, is_int):
-    print('Reading dfs2...')
-    dfs = Dfs2(in_dfs2)
-    ds = dfs.read()
-
-    print("Reading ascii template...")
-    ascii_template = AscFile(in_ascii)
-    elevation = ds['Grid Data']
-
-    print("ASCII file writing in progress...")
-    with open(out_ascii, 'w') as file_object:
-        for attribute in ascii_template.get_properties():
-            file_object.write(attribute + "\n")
-        for row in elevation[0]:
-            for value in row:
-                if is_int is False:
-                    file_object.write(str(value) + ' ')
-                else:
-                    file_object.write(str(int(value)) + ' ')
-            file_object.write('\n')
-
-    print("ASCII file has been saved.")
-    return 1
-
-
-def read_dfsu(infile, items, cell_size, timestep):
-    # Elena's script
-    print('Reading dfsu ...')
-    data = dfsu.Dfsu(infile)
-    print(data.summary())
-    print('Rasterazing dfsu ...')
-    data.grid_res(res=cell_size)
-
-    grids = np.empty([len(items), data.grid_x.shape[0], data.grid_x.shape[1]])
-    for n, i in enumerate(items):
-        grid = data.gridded_item(item_name=i, tstep_start=timestep, res=cell_size)
-        grid = np.around(grid, decimals=2)
-        grids[n] = grid[0]
-        print('Gridded data for ' + i + ' has been created')
-
-    return grids, data.grid_x, data.grid_y, data.projection
-
-
-def write_geotiff(data_array, x, y, raster_name, cell, proj, to_integer):
-    # Elena's script
-    if to_integer == 1:
-        data_array = data_array[~np.isnan(data_array)].astype(int)
-        raster_type = gdal.GDT_Int32
-    else:
-        raster_type = gdal.GDT_Float32
-    cols = x.shape[1]
-    rows = x.shape[0]
-    driver = gdal.GetDriverByName('GTiff')
-    out_raster = driver.Create(raster_name, cols, rows, 1, raster_type)
-    out_raster.SetGeoTransform((np.amin(x), cell, 0, np.amin(y), 0, cell))
-    outband = out_raster.GetRasterBand(1)
-    outband.WriteArray(data_array)
-    out_raster.SetProjection(proj)
-    outband.FlushCache()
 
 
 def log_reader(folder, include_subdirectories):
@@ -115,6 +46,32 @@ def mike_to_bat(folder):
                           + str(file)
                 commands_list.append(command)
     return commands_list
+
+
+def dfs2_to_ascii(in_ascii, out_ascii, in_dfs2, item_number, is_int):
+    print('Reading dfs2...')
+    dfs = Dfs2(in_dfs2)
+    ds = dfs.read()
+
+
+    print("Reading ascii template...")
+    ascii_template = AscFile(in_ascii)
+    elevation = ds.tail(1)[item_number]  # Last timestep
+
+    print("ASCII file writing in progress...")
+    with open(out_ascii, 'w') as file_object:
+        for attribute in ascii_template.get_properties():
+            file_object.write(attribute + "\n")
+        for row in elevation[0]:
+            for value in row:
+                if is_int is False:
+                    file_object.write(str(value) + ' ')
+                else:
+                    file_object.write(str(int(value)) + ' ')
+            file_object.write('\n')
+
+    print("ASCII file has been saved.")
+    return 1
 
 
 def dfsu_to_shp(dfsu_path, item_name, output_folder, time_step):
@@ -200,46 +157,3 @@ def dfsu_to_geotiff(input_dfsu, item_name, dx, dy, epsg_code, output_tiff):
         dst.write(datgrid, 1)
     print("GeoTiff file has been exported\nDone!")
     return g.x0, g.y0
-
-
-def dfs2_to_netcdf(input_dfs2, x0, y0, output_netcdf):
-    '''
-    :param input_dfs2: input dfs2 file
-    :param x0: xll coordinate
-    :param y0: yll coordinate
-    :param output_netcdf: output netcdf file
-    :return: netCDF file that can be opened e.g. in QGIS
-    '''
-
-    # read Dfs2
-    dfs = Dfs2(input_dfs2)
-    ds = dfs.read()
-
-    # set geometry
-    nx = ds[0].shape[2]
-    ny = ds[0].shape[1]
-    x = [x0 + dfs.dx*i for i in range(nx)]
-    y = [y0 + dfs.dy*i for i in range(ny)]
-
-    # write to netCDF
-    y = list(reversed(y))
-    res = {}
-    spdims = ["y", "x"]
-    dims = spdims
-    coords = {}
-
-    coords["x"] = xr.DataArray(x, dims="x", attrs={"standard_name": "x", "units": "meters"})
-    coords["y"] = xr.DataArray(y, dims="y", attrs={"standard_name": "y", "units": "meters"})
-
-    for item in ds.items:
-        v = item.name
-        res[v] = xr.DataArray(np.squeeze(ds[v]), dims=dims,
-                              attrs={'name': v,
-                                     # TODO add standard name from https://cfconventions.org/standard-names.html
-                                     'units': item.unit.name,
-                                     'eumType': item.type,
-                                     'eumUnit': item.unit})
-
-    xr_ds = xr.Dataset(res, coords=coords)
-    xr_ds.to_netcdf(output_netcdf)
-    return 1
