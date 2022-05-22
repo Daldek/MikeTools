@@ -37,7 +37,7 @@ class AscFile():
         with open(self.path, "r") as f:
             raw_header = [next(f) for x in range(6)]
             self.header = [x[:-1] for x in raw_header]  # removing '\n' for the end of each line
-            values = [float(list(item.split(' '))[1]) for item in self.header]  # extraction of values
+            values = [float(list(item.split(' '))[-1]) for item in self.header]  # extraction of values
         
         self.ncols, self.nrows, self.xllcorner,self.yllcorner, self.cellsize, self.nodata_value = values
         return values
@@ -50,7 +50,8 @@ class AscFile():
         with open(self.path) as f:
             raw_data = f.read().splitlines()[6:]
             split_data = [list(line.split(' ')) for line in raw_data]
-            flattened_data = list(np.concatenate(split_data).flat)
+            no_empty_strings = [[x for x in y if x] for y in split_data]
+            flattened_data = list(np.concatenate(no_empty_strings).flat)
             float_data = [float(x) for x in flattened_data]
         self.data = float_data
         return self.data
@@ -66,6 +67,7 @@ class AscFile():
 
         self.get_data()
         self.array = np.array(self.data).reshape(1, int(self.nrows), int(self.ncols))
+        self.array[self.array == self.nodata_value] = 'nan'
         return self.array
     
     
@@ -131,7 +133,7 @@ class MyASCII():
             file_obj.write('ncols ' + str(self.ncols) + '\n')
             file_obj.write('nrows ' + str(self.nrows) + '\n')
             file_obj.write('xllcorner ' + str(self.xllcorner) + '\n')
-            file_obj.write('yllcorrner ' + str(self.yllcorner) + '\n')
+            file_obj.write('yllcorner ' + str(self.yllcorner) + '\n')
             file_obj.write('cellsize ' + str(self.cellsize) + '\n')
             file_obj.write('NODATA_value ' + str(self.nodata_value) + '\n')
             for row in data:
