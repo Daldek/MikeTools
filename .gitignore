@@ -1,6 +1,11 @@
 .gitattributes
 *.dfs0
+*.dfs1
+*.dfs2
+*.dfsu
 *.iml
 *.xml
 **/.idea/
 **/.git/
+**/.vscode
+**/code/__pycache__
