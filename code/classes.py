@@ -125,7 +125,8 @@ class MyASCII():
     def write_asc(self):
         self.get_properties()
         asc_f = self.path[:-4] + "asc"
-        data = self.da.to_numpy()
+        data = np.flip(np.squeeze(np.nan_to_num(self.da.to_numpy(), nan = self.nodata_value)), 0)
+        print(type(data))
         with open(asc_f, 'w') as file_obj:
             file_obj.write('ncols ' + str(self.ncols) + '\n')
             file_obj.write('nrows ' + str(self.nrows) + '\n')
@@ -133,10 +134,8 @@ class MyASCII():
             file_obj.write('yllcorrner ' + str(self.yllcorner) + '\n')
             file_obj.write('cellsize ' + str(self.cellsize) + '\n')
             file_obj.write('NODATA_value ' + str(self.nodata_value) + '\n')
-            for d1 in data:
-                for d2 in d1:
-                    for row in d2:
-                        for value in row:
-                            file_obj.write(str(value) + ' ')
-                        file_obj.write('\n')
+            for row in data:
+                for value in row:
+                    file_obj.write(str(value) + ' ')
+                file_obj.write('\n')
         return 1
