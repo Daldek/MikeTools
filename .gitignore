@@ -3,6 +3,7 @@
 *.dfs1
 *.dfs2
 *.dfsu
+*.asc
 *.iml
 *.xml
 **/.idea/
