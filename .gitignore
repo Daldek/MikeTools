@@ -3,6 +3,8 @@
 *.dfs1
 *.dfs2
 *.dfsu
+*.gsf
+*.txt
 *.asc
 *.iml
 *.xml
